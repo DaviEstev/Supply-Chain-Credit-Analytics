@@ -17,6 +17,7 @@ pasta_dados.mkdir(exist_ok=True)
 # Definir o arquivo de destino
 src_transacoes = pasta_dados / "transacoes.csv"
 src_pagamentos = pasta_dados / "pagamentos.csv"
+src_analise_fornecedores = pasta_dados / "analise_fornecedores.csv"
 
 np.random.seed(42)
 random.seed(42)
@@ -196,4 +197,93 @@ media_atraso = df_pagamentos.loc[
 
 print(
     "Média de dias de atraso:", round(media_atraso, 2)
+)
+
+df_consolidado = pd.merge(
+    df_transacoes,
+    df_pagamentos,
+    on="id_transacao",
+    how="inner"
+)
+
+print(df_consolidado.head(10))
+
+print("Total de transações:", len(df_transacoes))
+print("Total de pagamentos:", len(df_pagamentos))
+print("Total consolidado:", len(df_consolidado))
+
+print("Colunas disponíveis:")
+print(df_consolidado.columns.tolist())
+
+analise_fornecedores = (
+    df_consolidado.groupby("nome_fornecedor").agg(
+        total_transacionado = ("valor","sum"),
+        quantidade_transacoes = ("id_transacao","count"),
+        media_dias_atraso = ("dias_atraso","mean")
+    )
+    .reset_index()
+)
+
+print(analise_fornecedores)
+
+valor_pago_em_atraso = (
+    df_consolidado[
+        df_consolidado["status_pagamento"] == "Pago em atraso"
+    ].groupby("nome_fornecedor")["valor"].sum()
+)
+
+valor_em_atraso = (
+        df_consolidado[
+        df_consolidado["status_pagamento"] == "Em atraso"
+        ].groupby("nome_fornecedor")["valor"].sum()
+)
+
+analise_fornecedores["valor_pago_em_atraso"] = (
+    analise_fornecedores["nome_fornecedor"].map(valor_pago_em_atraso).fillna(0)
+)
+
+analise_fornecedores["valor_em_atraso"] = (
+    analise_fornecedores["nome_fornecedor"].map(valor_em_atraso).fillna(0)
+)
+
+print(analise_fornecedores)
+
+
+maior_valor_transacionado_fornecedor = analise_fornecedores.loc[
+    analise_fornecedores["total_transacionado"].idxmax()
+]
+
+print(
+    "Fornecedor com maior valor transacionado:",
+    maior_valor_transacionado_fornecedor["nome_fornecedor"],
+    "com valor total de R$",
+    round(maior_valor_transacionado_fornecedor["total_transacionado"], 2)
+)
+
+maior_valor_em_atraso = analise_fornecedores.loc[
+    analise_fornecedores["valor_em_atraso"].idxmax()
+]
+
+print(
+    "Fornecedor com maior valor em atraso:",
+    maior_valor_em_atraso["nome_fornecedor"],
+    "com valor total de R$",
+    round(maior_valor_em_atraso["valor_em_atraso"], 2)
+)
+
+df_primeira_analise_fornecedores = pd.DataFrame(analise_fornecedores)
+
+fornecedor_ordenado_valor_transacionado = df_primeira_analise_fornecedores.sort_values(
+    by="total_transacionado",
+    ascending=False
+)
+
+print(
+    fornecedor_ordenado_valor_transacionado[["nome_fornecedor", "total_transacionado"]]
+)
+
+df_primeira_analise_fornecedores.to_csv(
+    pasta_dados / "primeira_analise_fornecedores.csv",
+    index=False,
+    encoding="utf-8-sig"
 )
